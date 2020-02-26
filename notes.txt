@@ -1,0 +1,46 @@
+//https://api.digitransit.fi/graphiql/hsl
+
+// Conv style - When is the next 214
+// Conv style - When is the next 215
+// Conv style - When is the next 548
+// Conv style - When is the next 365
+
+//query to get routes at a bus stop
+{
+	stop(id: "HSL:2143202") {
+	  gtfsId
+	  name
+	  lat
+	  lon
+	  patterns {
+		code
+		directionId
+		headsign
+		route {
+		  gtfsId
+		  shortName
+		  longName
+		  mode
+		}
+	  }
+	}
+  }
+
+  //query to get stop times at a stop
+  {
+	stop(id: "HSL:2143202") {
+	  name
+	  stoptimesWithoutPatterns {
+		scheduledArrival
+		realtimeArrival
+		arrivalDelay
+		scheduledDeparture
+		realtimeDeparture
+		departureDelay
+		realtime
+		realtimeState
+		serviceDay
+		headsign
+	  }
+	}  
+  }
