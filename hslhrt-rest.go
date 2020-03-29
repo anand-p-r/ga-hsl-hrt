@@ -3,7 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
+	log "github.com/sirupsen/logrus"
 	"net/http"
 )
 
@@ -26,16 +26,16 @@ func restClient() {
 				if key2 == "stop" {
 					val2 := val2.(map[string]interface{})
 					for key3, val3 := range val2 {
-						fmt.Printf("key - %v\n", key3)
-						fmt.Printf("val - %v\n\n", val3)
+						log.Debug("key - ", key3)
+						log.Debug("val - ", val3)
 					}
 				}
 			}
 		}
 	}
 
-	fmt.Printf("\ntarg-%v", target)
-	fmt.Printf("\nERR-%v", err)
+	log.Debug("targ - ", target)
+	log.Debug("ERR - ", err)
 
 	resp.Body.Close()
 
@@ -45,12 +45,12 @@ func restClient() {
 	err = json.NewDecoder(resp2.Body).Decode(&target)
 
 	for key, val := range target {
-		fmt.Printf("key - %v\n", key)
-		fmt.Printf("val - %v\n\n", val)
+		log.Debug("key - ", key)
+		log.Debug("val - ", val)
 	}
 
-	fmt.Printf("\ntarg-%v", target)
-	fmt.Printf("\nERR-%v", err)
+	log.Debug("targ - ", target)
+	log.Debug("ERR - ", err)
 
 	resp2.Body.Close()
 }

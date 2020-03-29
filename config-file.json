@@ -1,0 +1,21 @@
+{
+    "routes": [
+        "215",
+        "214",
+        "548",
+        "565",
+        "321",
+        "231",
+        "231N",
+        "321N"
+    ],
+    "callSignToHeadsign": {
+        "Sello": "Leppävaara",
+        "Sports Hall": "Lähderanta",
+        "Tapiola": "Tapiola",
+        "Espoo": "Espoontori",
+        "Vanhakartano": "Vanhakartano",
+        "Helsinki": "Elielinaukio",
+        "Vantaankoski": "Vantaankoski"
+    }
+}

@@ -4,11 +4,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/mux"
-	"log"
+	log "github.com/sirupsen/logrus"
 	"net/http"
 	"strings"
 	"time"
+	"io/ioutil"
+	"crypto/tls"
+	"crypto/x509"
 )
+
+/* Helper function - For REST responses */
+func respondWithError(w http.ResponseWriter, code int) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+}
 
 /* Helper function - For REST responses */
 func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
@@ -21,57 +30,353 @@ func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 }
 
 func listenAndServe() {
+
 	r := mux.NewRouter()
-	r.HandleFunc("/getRoute/{route}", GetRouteHandler)
+	r.HandleFunc("/getRoute", GetRouteHandler).Methods("POST")
+
+	// Read google client certificates for mTLS
+	// curl https://pki.goog/gsr2/GTS1O1.crt | openssl x509 -inform der >> google-certs\ca-cert.pem
+	// curl https://pki.goog/gsr2/GSR2.crt | openssl x509 -inform der >> google-certs\ca-cert.pem
+	// Also generate client side certificate for the host from where curl will be issued for testing and use that cert and key in curl command
+	// curl -X GET <https:domain:port/getRoute/215> --cert ./anand-aspire-cert.pem --key ./anand-aspire-key.out -v
+
+	caCerts, err := ioutil.ReadFile("google-certs/ca-cert.pem")
+	if err != nil {
+		log.Error(err)
+		return
+	}
+
+	caCertPool := x509.NewCertPool()
+	caCertPool.AppendCertsFromPEM(caCerts)
+
+	// Create the TLS Config with the CA pool and enable Client certificate validation
+	tlsConfig := &tls.Config{
+		ClientCAs: caCertPool,
+		ClientAuth: tls.RequireAndVerifyClientCert,
+	}
+	tlsConfig.BuildNameToCertificate()	
 
 	srv := &http.Server{
-		Addr: "localhost:8080",
+		Addr: ":6681",
 		// Good practice to set timeouts to avoid Slowloris attacks.
 		WriteTimeout: time.Second * 15,
 		ReadTimeout:  time.Second * 15,
 		IdleTimeout:  time.Second * 60,
 		Handler:      r, // Pass our instance of gorilla/mux in.
+		TLSConfig: tlsConfig, // Client side certificates
 	}
 
 	// Run our server in a goroutine so that it doesn't block.
 	go func() {
-		if err := srv.ListenAndServe(); err != nil {
-			log.Println(err)
+		if err := srv.ListenAndServeTLS(SERVERCERT, SERVERKEY); err != nil {
+			log.Error(err)
 		}
+		file.Close()
 	}()
 
 	time.Sleep(time.Duration(3600) * time.Second)
 }
 
-func GetRouteHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	fmt.Printf("Route: %v\n", vars["route"])
+func extractPostParams (r *http.Request) (request string, route string, destination string) {
 
-	var restResp []restResponse
-	var respR restResponse
+	defer r.Body.Close()
 
-	if vars["route"] == ROUTE215 {
-		fmt.Println("\n1\n")
-		for _, val := range routeInfo {
-			fmt.Println("\n2\n")
-			for _, val2 := range val.arrDepDetails {
-				fmt.Printf("\n3 - %v\n", val2.headSign)
-				if (strings.Contains(val2.headSign, HEADSIGN215_LEP)) ||
-					(strings.Contains(val2.headSign, HEADSIGN215_LAH)) {
-					fmt.Println("\n4\n")
-					respR.StopCode = val.stopDetails.code
-					respR.HeadSign = val2.headSign
-					respR.ScheduledDep = timeFromSeconds(val2.scheduledDeparture)
-					respR.RealArr = timeFromSeconds(val2.realtimeArrival)
+	decoder := json.NewDecoder(r.Body)
+	var t map[string]interface{}
+	err := decoder.Decode(&t)
 
-					restResp = append(restResp, respR)
+	if err != nil {
+		log.Error("Error decoding json body in request - ", err)
+		return
+	}
+
+	// We are trying to extract this part of json from the POST body
+	// "queryResult":{"queryText":"route 215",
+	// 		"parameters":{"route":[54,8],"place-attraction":"tapiola"},......"intent":{"name":"...","displayName":"Bus-Destination"},
+	//		"parameters":{"place-attraction":"sello"},......"intent":{"name":"...","displayName":"Destination-Only"},
+
+	_, ok := t["queryResult"]
+	if ok {
+		qResult := t["queryResult"].(map[string]interface{})
+
+		// Check intent type and extract parameters
+		_, ok:= qResult["intent"]
+
+		if ok {
+			intent := qResult["intent"].(map[string]interface{})
+
+			_, ok := intent["displayName"]
+
+			if ok {
+				rcvdIntent := intent["displayName"].(string)
+
+				switch strings.ToLower(rcvdIntent) {
+				case strings.ToLower(DESTONLY):
+					request = DESTONLY
+				case strings.ToLower(BUSDEST):
+					request = BUSDEST
+				default:
+					log.Error("Unsupported intent received-", rcvdIntent)
+				} 
+			}
+		}
+
+		_, ok = qResult["parameters"]
+
+		if ok {
+			parameters := qResult["parameters"].(map[string]interface{})
+
+			// Extract route parameter which is available only if the intent is bus-dest
+			if request == BUSDEST {
+				_, ok := parameters["route"]
+
+				// route is a list which can be [2,1,4] or [21,4] or [2,14] or [214]
+				// Best option is to convert each number to string and concatenate them
+	
+				if ok {
+					routeList := parameters["route"].([]interface{})
+					for i:=0;i<len(routeList);i++ {
+						st := fmt.Sprintf("%.0f", routeList[i].(float64))
+						route = route + st
+					}
+	
+					// Intelligent??: Take only first 3 numbers to ignore user conversational errors
+					if len(route) > 3 {
+						route = route[:3]
+					}	
+				} else {
+					log.Debug("parameters[route] - ", parameters["route"])
+					return
+				}
+			}
+
+			// Extract destination
+			_, ok := parameters["place-attraction"]
+			if ok {
+				destination = parameters["place-attraction"].(string)
+			} else {
+				log.Debug("parameters[place-attraction] - ", parameters["place-attraction"])
+			}
+				
+		} else {
+			log.Debug("qResult[parameters] - ", qResult["parameters"])
+			return
+		}
+	} else {
+		log.Debug("t[queryResult] - ", t["queryResult"])
+		return
+	}
+
+	return
+}
+
+func GetBusDestinationHandler(route string, headSign string) (routes []string){
+	var routeString string
+	for _, rtInfo := range routeInfo {
+		found := false
+		routeString = "Leaves from " + 
+			rtInfo.stopDetails.name + 
+			" (" + rtInfo.stopDetails.code + ")" + 
+			" at "
+		for _, arrDep := range rtInfo.arrDepDetails {
+			if strings.Contains(arrDep.route, route) {
+				if strings.Contains(strings.ToLower(arrDep.headSign), strings.ToLower(headSign)) {
+					// Bingo!
+					if found {
+						routeString = routeString + ", "
+					}
+
+					found = true
+					if arrDep.realtime {
+						routeString = routeString + timeFromSeconds(arrDep.realtimeDeparture).Format("15:04")
+					} else {
+						routeString = routeString + timeFromSeconds(arrDep.scheduledDeparture).Format("15:04")
+					}
+				}
+			}
+		}
+
+		if found {
+			routes = append(routes, routeString)
+		}
+	}
+
+	return
+}
+
+func GetDestinationHandler(headSign string) (routes []string) {
+	// Populate the GA Webhook Response Struct
+	var buses []string
+	var times []float64
+	for _, rtInfo := range routeInfo {
+		for _, arrDep := range rtInfo.arrDepDetails {
+			if strings.Contains(strings.ToLower(arrDep.headSign), strings.ToLower(headSign)) {
+				found := false
+				for indx, bus := range buses {
+					if strings.Contains(arrDep.route, bus) {
+						found = true
+						// We already have found this bus before for this dest, but now we have a new time. Append it
+						if arrDep.realtime {
+							routes[indx] = routes[indx] + "," + timeFromSeconds(arrDep.realtimeDeparture).Format("15:04")
+						} else {
+							routes[indx] = routes[indx] + "," + timeFromSeconds(arrDep.scheduledDeparture).Format("15:04")
+						}	
+						break
+					}	
+				}
+
+				if !found {
+					// New bus found for the given destination. Create an entry in routes.
+					buses = append(buses, arrDep.route)
+					routeString := "Bus " + arrDep.route + 
+						" leaves from " + 
+						rtInfo.stopDetails.name + 
+						" (" + rtInfo.stopDetails.code + ")" + 
+						" at "
+					var fTime float64
+					if arrDep.realtime {
+						routeString = routeString + timeFromSeconds(arrDep.realtimeDeparture).Format("15:04")
+						fTime = arrDep.realtimeDeparture
+					} else {
+						routeString = routeString + timeFromSeconds(arrDep.scheduledDeparture).Format("15:04")
+						fTime = arrDep.scheduledDeparture
+					}
+
+					times = append(times, fTime) 
+					routes = append(routes, routeString)	
 				}
 			}
 		}
 	}
-	fmt.Printf("REST RESP - %v", restResp)
-	respondWithJSON(w, http.StatusOK, restResp)
+
+	// Sort the routes based on times
+	log.Debug("Times - ", times)
+	log.Debug("Routes - ", routes)
+	for i:=0;i<len(times)-1;i++ {
+		for j:=0;j<(len(times)-i-1);j++ {
+			if times[j] > times[i] {
+				// swap routes
+				routes[i], routes[j] = routes[j], routes[i]
+				times[i], times[j] = times[j], times[i]
+			}
+		}
+	}
+	log.Debug("Aft Times - ", times)
+	log.Debug("Aft Routes - ", routes)
+
 	return
+}
+
+func GetRouteHandler(w http.ResponseWriter, r *http.Request) {
+
+	request, route, destination := extractPostParams(r)
+	log.Info("WebHook Req for request - ", request, " route - ", route, " to destination - ", destination)
+
+	var gaWebHkResp gaWebHookResponse
+	var items []itemStruct	
+
+	headSign, ok := configSigns[strings.ToLower(destination)]
+
+	if !ok {
+		log.Error("Destination could not be mapped - ", destination)
+		gaWebHkResp.FulfillmentText = "Destination could not be mapped"
+	
+		item := itemStruct{
+			SimpleResponse: simpleRespStruct{
+				TextToSpeech: "Sorry, but destination could not be mapped! Please retry.",
+			},
+		}
+
+		items = append(items, item)
+
+		richResp := richResponseStruct{
+			Items: items,
+		}
+	
+		gaWebHkResp.Payload = payloadStruct{
+			Google: googleStruct{
+				ExpectUserResponse: true,
+				RichResponse: richResp,
+			},
+		}
+	
+		log.Error("WebHook ERROR RESP - ", gaWebHkResp)
+		respondWithJSON(w, http.StatusOK, gaWebHkResp)
+		return
+	}
+
+	var routes []string
+
+	switch request {
+	case BUSDEST: 
+		routes = GetBusDestinationHandler(route, headSign)
+	case DESTONLY:
+		routes = GetDestinationHandler(headSign)
+	default:
+		log.Error("Unsupported handler type - ", request, "Internal error!!")
+	}
+
+	if len(routes) == 0 {
+		log.Error("Route-", route, " Destination-", destination, " mismatch")
+		gaWebHkResp.FulfillmentText = "No routes to provided destination"
+	
+		item := itemStruct{
+			SimpleResponse: simpleRespStruct{
+				TextToSpeech: "Sorry, but no routes were found! Please retry.",
+			},
+		}
+
+		items = append(items, item)
+
+		richResp := richResponseStruct{
+			Items: items,
+		}
+	
+		gaWebHkResp.Payload = payloadStruct{
+			Google: googleStruct{
+				ExpectUserResponse: true,
+				RichResponse: richResp,
+			},
+		}
+	
+		log.Error("WebHook ERROR RESP - ", gaWebHkResp)
+		respondWithJSON(w, http.StatusOK, gaWebHkResp)
+		return
+	}
+
+	// Only two simple responses are expected
+	if len(routes) > 2 {
+		routes = routes[:2]
+	}
+	
+	for _, rt := range routes {
+		item := itemStruct{
+			SimpleResponse: simpleRespStruct{
+				TextToSpeech: rt,
+			},
+		}
+	
+		items = append(items, item)
+	}
+
+	richResp := richResponseStruct{
+		Items: items,
+	}
+	
+	gaWebHkResp.FulfillmentText = "Here are upcoming buses for route " + route
+	
+	gaWebHkResp.Payload = payloadStruct{
+		Google: googleStruct{
+			ExpectUserResponse: true,
+			RichResponse: richResp,
+		},
+	}
+
+	log.Info("WebHook RESP - ", gaWebHkResp)
+	respondWithJSON(w, http.StatusOK, gaWebHkResp)
+
+	return
+
 }
 
 func timeFromSeconds(seconds float64) (calcTime time.Time) {

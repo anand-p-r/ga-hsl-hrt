@@ -44,3 +44,22 @@
 	  }
 	}  
   }
+
+
+Setup a secure webserver:
+1. HASSIO is already using Let's Encrypt TLS certificates. Point the GA server code to use those certificates.
+2. Open port 6681 or something else on routers and see the magic.
+3. Generate client side certificates for client that will run curl commands to test the API
+4. Use this curl command:
+	curl -X GET <https:domain:port/getRoute/215> --cert ./anand-aspire-cert.pem --key ./anand-aspire-key.out -v
+5. Use google's client side certificates to authenticate dialog flow queries
+6. Extract entity parameters from intent
+7. These params are automatically included POST body sent to the API (our server)
+
+Example cURLS:
+
+curl -X POST -H ': ' -H 'Content-Type: application/json' -d '{"responseId":"d8f1fa6a-7973-4661-8555-0644328e65a2-dd2bbea9","queryResult":{"queryText":"215 to sello","parameters":{"route":[215],"place-attraction":"sello"},"allRequiredParamsPresent":true,"outputContexts":[{"name":"projects/my-bus-a00db/agent/sessions/0dde2156-dae3-74ce-549b-587b69710cd8/contexts/__system_counters__","parameters":{"no-input":0,"no-match":0,"route":[215],"route.original":["215"],"place-attraction":"sello","place-attraction.original":"sello"}}],"intent":{"name":"projects/my-bus-a00db/agent/intents/95b484b2-634a-4ac8-ab8b-9394b8f82d85","displayName":"Bus-Destination"},"intentDetectionConfidence":1,"languageCode":"en"},"originalDetectIntentRequest":{"payload":{}},"session":"projects/my-bus-a00db/agent/sessions/0dde2156-dae3-74ce-549b-587b69710cd8"}' https://chandini-hass.duckdns.org:6681/getRoute --cert ./anand-aspire-cert.pem --key ./anand-aspire-key.out | jq "."
+
+curl -X POST -H ': ' -H 'Content-Type: application/json' -d '{"responseId":"4c0c8b83-7c40-4d15-b5b4-30ba54c901c1-dd2bbea9","queryResult":{"queryText":"bus to sello","parameters":{"place-attraction":"sello"},"allRequiredParamsPresent":true,"fulfillmentMessages":[{"text":{"text":[""]}}],"outputContexts":[{"name":"projects/my-bus-a00db/agent/sessions/0dde2156-dae3-74ce-549b-587b69710cd8/contexts/__system_counters__","parameters":{"no-input":0,"no-match":0,"place-attraction":"sello","place-attraction.original":"sello"}}],"intent":{"name":"projects/my-bus-a00db/agent/intents/3a49514c-b7c4-4243-b97b-ba96ec963015","displayName":"Destination-Only"},"intentDetectionConfidence":1,"languageCode":"en"},"originalDetectIntentRequest":{"payload":{}},"session":"projects/my-bus-a00db/agent/sessions/0dde2156-dae3-74ce-549b-587b69710cd8"}' https://chandini-hass.duckdns.org:6681/getRoute --cert ./anand-aspire-cert.pem --key ./anand-aspire-key.out | jq "."
+
+curl -X POST -H ': ' -H 'Content-Type: application/json' -d '{"responseId":"09ae3c5b-c665-4940-ac4a-d47a7829d051-dd2bbea9","queryResult":{"queryText":"next bus to sports hall","parameters":{"place-attraction":"sports hall"},"allRequiredParamsPresent":true,"fulfillmentMessages":[{"text":{"text":[""]}}],"outputContexts":[{"name":"projects/my-bus-a00db/agent/sessions/0dde2156-dae3-74ce-549b-587b69710cd8/contexts/__system_counters__","parameters":{"no-input":0,"no-match":0,"place-attraction":"sports hall","place-attraction.original":"sports hall"}}],"intent":{"name":"projects/my-bus-a00db/agent/intents/3a49514c-b7c4-4243-b97b-ba96ec963015","displayName":"Destination-Only"},"intentDetectionConfidence":1,"languageCode":"en"},"originalDetectIntentRequest":{"payload":{}},"session":"projects/my-bus-a00db/agent/sessions/0dde2156-dae3-74ce-549b-587b69710cd8"}' https://chandini-hass.duckdns.org:6681/getRoute --cert ./anand-aspire-cert.pem --key ./anand-aspire-key.out | jq "."
