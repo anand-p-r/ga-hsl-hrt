@@ -38,9 +38,9 @@ func listenAndServe() {
 	// curl https://pki.goog/gsr2/GTS1O1.crt | openssl x509 -inform der >> google-certs\ca-cert.pem
 	// curl https://pki.goog/gsr2/GSR2.crt | openssl x509 -inform der >> google-certs\ca-cert.pem
 	// Also generate client side certificate for the host from where curl will be issued for testing and use that cert and key in curl command
-	// curl -X GET <https:domain:port/getRoute/215> --cert ./anand-aspire-cert.pem --key ./anand-aspire-key.out -v
+	// curl -X GET <https:domain:port/getRoute/215> --cert ./localhost.pem --key ./localhost.out -v
 
-	caCerts, err := ioutil.ReadFile("google-certs/ca-cert.pem")
+	caCerts, err := ioutil.ReadFile(clientCaCert)
 	if err != nil {
 		log.Error(err)
 		return
@@ -56,8 +56,9 @@ func listenAndServe() {
 	}
 	tlsConfig.BuildNameToCertificate()	
 
+	addr := ":" + listeningPort
 	srv := &http.Server{
-		Addr: ":6681",
+		Addr: addr,
 		// Good practice to set timeouts to avoid Slowloris attacks.
 		WriteTimeout: time.Second * 15,
 		ReadTimeout:  time.Second * 15,
@@ -68,7 +69,7 @@ func listenAndServe() {
 
 	// Run our server in a goroutine so that it doesn't block.
 	go func() {
-		if err := srv.ListenAndServeTLS(SERVERCERT, SERVERKEY); err != nil {
+		if err := srv.ListenAndServeTLS(serverCert, serverKey); err != nil {
 			log.Error(err)
 		}
 		file.Close()

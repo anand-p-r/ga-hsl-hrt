@@ -1,4 +1,5 @@
 {
+    "logFile": "./ga-hsl-hrt",
     "routes": [
         "215",
         "214",
@@ -17,5 +18,14 @@
         "Vanhakartano": "Vanhakartano",
         "Helsinki": "Elielinaukio",
         "Vantaankoski": "Vantaankoski"
-    }
+    },
+    "stopGtfsIds": [
+        "HSL:2143202",
+        "HSL:2143218",
+        "HSL:2143217"
+    ],
+    "port": "6681",
+    "serverCert": "/ssl/fullchain.pem",
+    "serverKey": "/ssl/privkey.pem",
+    "clientCert": "../google-certs/ca-cert.pem"
 }
