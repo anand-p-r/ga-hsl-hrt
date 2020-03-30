@@ -71,6 +71,10 @@ Use case: Find bus timings from bus stops near to a house. E.g.
    1. https://digitransit.fi/en/developers/apis/1-routing-api/
    2. https://api.digitransit.fi/graphiql/hsl
 
+5. Google action supports mTLS. This means client and server communication can be secured using both server side and client side certificates and encryption keys. Details can be found here - https://cloud.google.com/dialogflow/docs/fulfillment-mtls.
+   1. Let's Encrypt can be used to generate the server certificates to authenticate and authorize your webserver hosting this GO application - https://letsencrypt.org/
+   2. Self-generated client certificate can also be generated for machines in development environment to run cURL commands during testing. This self generated certificate can be appended to ca-cert file that was generated for step-5-1 above for the Google servers.
+
 ## Deployment
 
 1. Once all the GO packages are installed, build the application binary. For e.g. in a ubuntu shell: go build *.go
