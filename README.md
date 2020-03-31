@@ -5,6 +5,9 @@ Use case: Find bus timings from bus stops near to a house. E.g.
 "Hey Google: When is the next 215 to Sello?"
 "Ok Google: When is the next bus to Tapiola?"
 
+## Blog post
+https://medium.com/@anandpr/hey-google-when-is-the-next-bus-477c85881e1a
+
 ## Getting Started
 
 1. Clone the project
