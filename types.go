@@ -1,8 +1,11 @@
-package main
+/*
+types.go
 
-import (
-	"time"
-)
+- Structure types and constants used across the application.
+
+*/
+
+package main
 
 const url string = "https://api.digitransit.fi/routing/v1/routers/hsl/index/graphql"
 
@@ -24,6 +27,7 @@ const (
   STOPGTFSIDS string = "stopGtfsIds"
 )
 
+// A bus's arrival/departure details.
 type routeArrDepDetails struct {
 	scheduledArrival   float64
 	realtimeArrival    float64
@@ -37,16 +41,19 @@ type routeArrDepDetails struct {
 	route              string
 }
 
+// A bus's headsigns source/destination
 type routeHeadSigns struct {
 	routeName string
 	headsigns []string
 }
 
+// Main structure that holds all stops and buses from the stop.
 type routeData struct {
 	stopDetails   stopStruct
 	arrDepDetails []routeArrDepDetails
 }
 
+// Structure that holds the bus stop details
 type stopStruct struct {
 	gtfsId    string
 	name      string
@@ -55,41 +62,39 @@ type stopStruct struct {
 	longitude float64
 }
 
-type restResponse struct {
-	StopCode     string    `json: StopCode`
-	HeadSign     string    `json: HeadSign`
-	ScheduledDep time.Time `json: ScheduledDep`
-	RealArr      time.Time `json: RealArr`
-}
-
+// Structure for Webhook Response to Dialogflow.
 type simpleRespStruct struct {
 	TextToSpeech string `json:"textToSpeech"`
 }
 
+// Structure for Webhook Response to Dialogflow.
 type itemStruct struct {
 	SimpleResponse simpleRespStruct `json:"simpleResponse"`
 }
 
+// Structure for Webhook Response to Dialogflow.
 type suggestionStruct struct {
 	Title string `json:"title"`
 }
 
-// Webhooks are limited to two simple responses.
-// Let's also limit ourselves to one suggestion.
+// Structure for Webhook Response to Dialogflow.
 type richResponseStruct struct {
 	Items       []itemStruct       `json:"items"`
 	Suggestions []suggestionStruct `json:"suggestions"`
 }
 
+// Structure for Webhook Response to Dialogflow.
 type googleStruct struct {
 	ExpectUserResponse bool               `json:"expectUserResponse"`
 	RichResponse       richResponseStruct `json:"richResponse"`
 }
 
+// Structure for Webhook Response to Dialogflow.
 type payloadStruct struct {
 	Google             googleStruct       `json:"google"`
 }
 
+// Structure for Webhook Response to Dialogflow.
 type gaWebHookResponse struct {
 	FulfillmentText  string        `json:"fulfillmentText"`
 	Payload          payloadStruct `json:"payload"`

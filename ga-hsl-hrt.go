@@ -1,13 +1,25 @@
+/*
+ga-hsl-hrt.go
+
+Main file for the webserver implementation
+- Configuration parsing and updating is done here.
+- Logging is enabled.
+- Main entry point for the webserver
+*/
+
 package main
 
 import (
 	"os"
+	"sync"
 	"github.com/spf13/viper"
 	log "github.com/sirupsen/logrus"
 )
 
+// Main structure that holds routes retrieved from HSL API
 var routeInfo []routeData
 
+// Configuration parameters
 var configRoutes []string
 var configSigns map[string]string
 var configStopGtfsIds []string
@@ -15,8 +27,17 @@ var listeningPort string
 var clientCaCert string
 var serverCert string
 var serverKey string
+
+// Logfile
 var file *os.File
 
+// Waitgroup for go routines
+var wg sync.WaitGroup
+
+/* 
+enableLogging: Function to enable logging to a file. Utilises logrus package
+to define different logging levels.   
+*/
 func enableLogging(logFile string) {
 	logFile = logFile + ".log"
 	file, err := os.OpenFile(logFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
@@ -29,6 +50,11 @@ func enableLogging(logFile string) {
 	log.SetLevel(log.TraceLevel)
 }
 
+/*
+getConfig: Function to parse and extract configuration parameters from
+config-file.json. All parameters are obligatory. Missing parameters will
+cause a non recoverable panic!
+*/
 func getConfig() {
 	viper.SetConfigName("config-file")
 	viper.SetConfigType("json")
@@ -94,6 +120,9 @@ func getConfig() {
 	return
 }
 
+/*
+main: Exatly what it says!! Main function
+*/
 func main() {
 
 	// Read configuration information
@@ -107,4 +136,11 @@ func main() {
 
 	// Start the webserver
 	listenAndServe()
+
+	// Do not exit as long as the webser is running
+	log.Debug("Waiting for pending go routines to end...")
+	wg.Wait()
+	log.Debug("Everything is done. Ending Main!!")
+	file.Close()
 }
+

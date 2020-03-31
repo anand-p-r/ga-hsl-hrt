@@ -1,3 +1,11 @@
+/*
+http-server.go
+
+HTTPS Webserver Handling with mutual TLS
+- Parse and extract required parameters from Webhook Request from Google Assistant.
+- Format response into Webhook Response for Google Assistant.
+*/
+
 package main
 
 import (
@@ -13,13 +21,17 @@ import (
 	"crypto/x509"
 )
 
-/* Helper function - For REST responses */
+/* 
+respondWithError: Helper function - For REST responses with error status
+*/
 func respondWithError(w http.ResponseWriter, code int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 }
 
-/* Helper function - For REST responses */
+/* 
+respondWithJSON: Helper function - For REST responses with valid JSON payload
+*/
 func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
@@ -29,6 +41,29 @@ func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	}
 }
 
+/*
+timeFromSeconds: Helper function - To convert time from float64 to locale based 
+formatted string.
+*/
+func timeFromSeconds(seconds float64) (calcTime time.Time) {
+
+	currTime := time.Now()
+
+	loc, _ := time.LoadLocation("Local")
+
+	calcTime = time.Date(currTime.Year(), currTime.Month(), currTime.Day(), 0, 0, int(seconds), 0, loc)
+
+	return
+
+}
+
+/*
+listenAndServe: Gathers the server and client certificates before starting the 
+webserver. Server is started in a go routine so its non-blocking.
+TODO: Can extend this further to listen to signals over channels to 
+shutdown and restart webserver - for e.g. when runtime configuration updates are done
+This also means runtime configuration updates have to be supported first :)
+*/
 func listenAndServe() {
 
 	r := mux.NewRouter()
@@ -62,22 +97,25 @@ func listenAndServe() {
 		// Good practice to set timeouts to avoid Slowloris attacks.
 		WriteTimeout: time.Second * 15,
 		ReadTimeout:  time.Second * 15,
-		IdleTimeout:  time.Second * 60,
+		// IdleTimeout:  time.Second * 60,
 		Handler:      r, // Pass our instance of gorilla/mux in.
 		TLSConfig: tlsConfig, // Client side certificates
 	}
 
 	// Run our server in a goroutine so that it doesn't block.
+	wg.Add(1)
 	go func() {
 		if err := srv.ListenAndServeTLS(serverCert, serverKey); err != nil {
 			log.Error(err)
 		}
-		file.Close()
+		wg.Done()
 	}()
-
-	time.Sleep(time.Duration(3600) * time.Second)
 }
 
+/*
+extractPostParams: Extracts JSON body parameters from Webhook Request received from
+Dialogflow.
+*/
 func extractPostParams (r *http.Request) (request string, route string, destination string) {
 
 	defer r.Body.Close()
@@ -171,6 +209,11 @@ func extractPostParams (r *http.Request) (request string, route string, destinat
 	return
 }
 
+/*
+GetBusDestinationHandler: Handler to extract bus and destination details from route structurees,
+based on given bus and destination.
+Formats them into a string slice with scheduled/realtime departure timings
+*/
 func GetBusDestinationHandler(route string, headSign string) (routes []string){
 	var routeString string
 	for _, rtInfo := range routeInfo {
@@ -205,6 +248,11 @@ func GetBusDestinationHandler(route string, headSign string) (routes []string){
 	return
 }
 
+/*
+GetDestinationHandler: Handler to extract bus and destination details from route structures,
+based on given destination.
+Formats them into a string slice with scheduled/realtime departure timings
+*/
 func GetDestinationHandler(headSign string) (routes []string) {
 	// Populate the GA Webhook Response Struct
 	var buses []string
@@ -268,6 +316,11 @@ func GetDestinationHandler(headSign string) (routes []string) {
 	return
 }
 
+/*
+GetRouteHandler: Webser main handler that invokes other functions based on available 
+bus+destination or destination.
+Formats the string slice into Webhook Response format for Dialogflow.
+*/
 func GetRouteHandler(w http.ResponseWriter, r *http.Request) {
 
 	request, route, destination := extractPostParams(r)
@@ -375,18 +428,6 @@ func GetRouteHandler(w http.ResponseWriter, r *http.Request) {
 
 	log.Info("WebHook RESP - ", gaWebHkResp)
 	respondWithJSON(w, http.StatusOK, gaWebHkResp)
-
-	return
-
-}
-
-func timeFromSeconds(seconds float64) (calcTime time.Time) {
-
-	currTime := time.Now()
-
-	loc, _ := time.LoadLocation("Local")
-
-	calcTime = time.Date(currTime.Year(), currTime.Month(), currTime.Day(), 0, 0, int(seconds), 0, loc)
 
 	return
 

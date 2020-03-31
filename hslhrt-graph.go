@@ -1,3 +1,12 @@
+/*
+hslhrt-graph.go
+
+Handles the GraphQL interface functionality towards HSL API.
+- For every bus stop configured in the configuration file, retrieve all buses including their 
+  scheduled and realtime departure times and store them in route information structure.
+- Route information structures are later used by the webser handler to respond with bus timings.
+*/
+
 package main
 
 import (
@@ -8,10 +17,10 @@ import (
 	"sort"
 )
 
-// Universal client variable
+// Universal GraphQL client variable
 var graphClient *graphql.Client = graphql.NewClient(url)
 
-// Sort functions for scheduled arrival time
+// Sort structure and functions for scheduled arrival time
 type aDSlice []routeArrDepDetails
 func (aD aDSlice) Len() int { 
 	return len(aD) 
@@ -25,6 +34,14 @@ func (aD aDSlice) Swap(i, j int) {
 	aD[i], aD[j] = aD[j], aD[i]
 }
 
+/*
+getRoutesFromStop: Retrieves routes from HSL API over the GraphQL interface
+Include the used GraphQL query that can also be verified at this link:
+https://api.digitransit.fi/graphiql/hsl. 
+Input: gtfsId that uniquely identifies a bus stop
+Output: Returns the route data structure with arrival and departure times of routes
+from the bus stop.
+*/
 func getRoutesFromStop(gtfsId string) (routeInfo routeData) {
 
 	req := graphql.NewRequest(`query ($id: String!) {
@@ -197,6 +214,13 @@ func getRoutesFromStop(gtfsId string) (routeInfo routeData) {
 	return
 }
 
+/*
+buildRouteData: Function that builds route information for a stop configured in 
+configuration file.
+Input: gtfsId that uniquely identifies a bus stop
+Output: Returns the route data structure with arrival and departure times of routes
+from the bus stop.
+*/
 func buildRouteData(gtfsId string) (routeInfo routeData) {
 
 	routeInfo = getRoutesFromStop(gtfsId)
